@@ -18,13 +18,13 @@ impl Timestamp<WallMST> {
     pub fn to_bytes(&self) -> [u8; 16] {
         let mut res = [0; 16];
         res[0..8].copy_from_slice(&self.time.0.to_be_bytes());
-        res[8..12].copy_from_slice(&self.count.to_be_bytes());
+        res[8..10].copy_from_slice(&self.count.to_be_bytes());
         return res;
     }
 
     pub fn from_bytes(bytes: [u8; 16]) -> Self {
         let nanos = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
-        let count = u32::from_be_bytes(bytes[8..12].try_into().unwrap());
+        let count = u16::from_be_bytes(bytes[8..10].try_into().unwrap());
         Timestamp {
             time: WallMST(nanos),
             count: count,

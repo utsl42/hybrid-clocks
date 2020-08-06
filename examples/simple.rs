@@ -1,8 +1,8 @@
 use hybrid_clocks::{Clock, Result};
 
 fn main() -> Result<()> {
-    let mut clock_a = Clock::wall_ns()?;
-    let mut clock_b = Clock::wall_ns()?;
+    let mut clock_a = Clock::wall_ms()?;
+    let mut clock_b = Clock::wall_ms()?;
 
     let b0 = clock_b.now()?;
     let a0 = clock_a.now()?;

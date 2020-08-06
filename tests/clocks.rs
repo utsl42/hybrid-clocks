@@ -10,7 +10,7 @@ fn observing<'a>(clock: &mut Clock<ManualClock>, msg: &Timestamp<u64>) -> Result
 pub fn timestamps<C: Generator + 'static>(
     times: C,
 ) -> Box<dyn GeneratorObject<Item = Timestamp<C::Item>>> {
-    let counts = u32s();
+    let counts = u16s();
     (times, counts)
         .map(|(time, count)| Timestamp { time, count })
         .boxed()

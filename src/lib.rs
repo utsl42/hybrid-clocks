@@ -51,7 +51,7 @@ pub struct Timestamp<T> {
     pub time: T,
     /// A Lamport clock used to disambiguate events that are given the same
     /// Wall-clock time. This is reset whenever `time` is incremented.
-    pub count: u32,
+    pub count: u16,
 }
 
 /// The main clock type.
@@ -66,13 +66,6 @@ pub struct Clock<S: ClockSource> {
 pub struct OffsetLimiter<S: ClockSource> {
     clock: Clock<S>,
     max_offset: S::Delta,
-}
-
-impl Clock<WallNS> {
-    /// Returns a `Clock` that uses WallNS-clock time.
-    pub fn wall_ns() -> Result<Clock<WallNS>> {
-        Clock::new(WallNS)
-    }
 }
 
 impl Clock<WallMS> {
@@ -230,7 +223,7 @@ mod tests {
     pub fn timestamps<C: Generator + 'static>(
         times: C,
     ) -> Box<dyn GeneratorObject<Item = Timestamp<C::Item>>> {
-        let counts = u32s();
+        let counts = u16s();
         (times, counts)
             .map(|(time, count)| Timestamp { time, count })
             .boxed()

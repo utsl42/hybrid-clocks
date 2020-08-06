@@ -4,9 +4,7 @@ use std::ops::Sub;
 mod wall_ms;
 pub use self::wall_ms::*;
 mod manual;
-mod wall_ns;
 pub use self::manual::*;
-pub use self::wall_ns::*;
 use crate::Result;
 
 const NANOS_PER_SEC: u64 = 1000_000_000;
