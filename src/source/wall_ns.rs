@@ -90,9 +90,8 @@ impl Timestamp<WallNST> {
 
     pub fn to_bytes(&self) -> [u8; 16] {
         let mut res = [0; 16];
-        res[0..4].copy_from_slice(&self.epoch.to_be_bytes());
-        res[4..12].copy_from_slice(&self.time.0.to_be_bytes());
-        res[12..16].copy_from_slice(&self.count.to_be_bytes());
+        res[0..8].copy_from_slice(&self.time.0.to_be_bytes());
+        res[8..12].copy_from_slice(&self.count.to_be_bytes());
         return res;
     }
 
@@ -103,11 +102,9 @@ impl Timestamp<WallNST> {
     }
 
     pub fn from_bytes(bytes: [u8; 16]) -> Self {
-        let epoch = u32::from_be_bytes(bytes[0..4].try_into().unwrap());
-        let nanos = u64::from_be_bytes(bytes[4..12].try_into().unwrap());
-        let count = u32::from_be_bytes(bytes[12..16].try_into().unwrap());
+        let nanos = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
+        let count = u32::from_be_bytes(bytes[8..12].try_into().unwrap());
         Timestamp {
-            epoch: epoch,
             time: WallNST::of_nanos(nanos),
             count: count,
         }
@@ -261,7 +258,6 @@ mod tests {
             assert_eq!(
                 ts,
                 Timestamp {
-                    epoch: 0,
                     time: WallNST(1558805131923316000),
                     count: 0,
                 }

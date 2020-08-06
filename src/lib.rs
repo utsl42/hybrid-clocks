@@ -47,8 +47,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 ///  * `a` is part of `b`'s causal history, or vica-versa.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Timestamp<T> {
-    /// An epoch counter.
-    pub epoch: u32,
     /// The Wall-clock time as returned by the clock source.
     pub time: T,
     /// A Lamport clock used to disambiguate events that are given the same
@@ -60,7 +58,6 @@ pub struct Timestamp<T> {
 #[derive(Debug, Clone)]
 pub struct Clock<S: ClockSource> {
     src: S,
-    epoch: u32,
     last_observed: Timestamp<S::Time>,
 }
 
@@ -102,11 +99,9 @@ impl<S: ClockSource> Clock<S> {
         let clock = Clock {
             src: src,
             last_observed: Timestamp {
-                epoch: 0,
                 time: init,
                 count: 0,
             },
-            epoch: 0,
         };
         Ok(clock)
     }
@@ -115,13 +110,6 @@ impl<S: ClockSource> Clock<S> {
     /// in the future we don't mind seeing updates from.
     pub fn with_max_diff(self, max_offset: S::Delta) -> OffsetLimiter<S> {
         OffsetLimiter::new(self, max_offset)
-    }
-
-    /// Used to create a new "epoch" of clock times, mostly useful as a manual
-    /// override when a cluster member has skewed the clock time far
-    /// into the future.
-    pub fn set_epoch(&mut self, epoch: u32) {
-        self.epoch = epoch;
     }
 
     /// Creates a unique monotonic timestamp suitable for annotating messages we send.
@@ -135,12 +123,11 @@ impl<S: ClockSource> Clock<S> {
         let lp = self.last_observed.clone();
 
         self.last_observed = match (
-            lp.epoch.cmp(&observation.epoch),
             lp.time.cmp(&observation.time),
             lp.count.cmp(&observation.count),
         ) {
-            (Ordering::Less, _, _) | (Ordering::Equal, Ordering::Less, _) => observation.clone(),
-            (Ordering::Equal, Ordering::Equal, Ordering::Less) => Timestamp {
+            (Ordering::Less, _) => observation.clone(),
+            (Ordering::Equal, Ordering::Less) => Timestamp {
                 count: observation.count + 1,
                 ..lp
             },
@@ -161,7 +148,6 @@ impl<S: ClockSource> Clock<S> {
 
     fn read_pt(&mut self) -> Result<Timestamp<S::Time>> {
         Ok(Timestamp {
-            epoch: self.epoch,
             time: self.src.now()?,
             count: 0,
         })
@@ -220,14 +206,13 @@ impl<S: ClockSource> OffsetLimiter<S> {
 
 impl<T: fmt::Display> fmt::Display for Timestamp<T> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{}:{}+{}", self.epoch, self.time, self.count)
+        write!(fmt, "{}+{}", self.time, self.count)
     }
 }
 
 impl<T> Timestamp<T> {
     pub fn time_into<U: From<T>>(self) -> Timestamp<U> {
         Timestamp {
-            epoch: self.epoch,
             time: self.time.into(),
             count: self.count,
         }
@@ -245,10 +230,9 @@ mod tests {
     pub fn timestamps<C: Generator + 'static>(
         times: C,
     ) -> Box<dyn GeneratorObject<Item = Timestamp<C::Item>>> {
-        let epochs = u32s();
         let counts = u32s();
-        (epochs, times, counts)
-            .map(|(epoch, time, count)| Timestamp { epoch, time, count })
+        (times, counts)
+            .map(|(time, count)| Timestamp { time, count })
             .boxed()
     }
 }

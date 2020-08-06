@@ -10,10 +10,9 @@ fn observing<'a>(clock: &mut Clock<ManualClock>, msg: &Timestamp<u64>) -> Result
 pub fn timestamps<C: Generator + 'static>(
     times: C,
 ) -> Box<dyn GeneratorObject<Item = Timestamp<C::Item>>> {
-    let epochs = u32s();
     let counts = u32s();
-    (epochs, times, counts)
-        .map(|(epoch, time, count)| Timestamp { epoch, time, count })
+    (times, counts)
+        .map(|(time, count)| Timestamp { time, count })
         .boxed()
 }
 
@@ -24,7 +23,6 @@ fn fig_6_proc_0_a() -> Result<()> {
     assert_eq!(
         clock.now()?,
         Timestamp {
-            epoch: 0,
             time: 10,
             count: 0
         }
@@ -39,14 +37,12 @@ fn fig_6_proc_1_a() -> Result<()> {
         observing(
             &mut clock,
             &Timestamp {
-                epoch: 0,
                 time: 10,
                 count: 0
             }
         )
         .unwrap(),
         Timestamp {
-            epoch: 0,
             time: 10,
             count: 1
         }
@@ -60,7 +56,6 @@ fn fig_6_proc_1_b() -> Result<()> {
     let _ = observing(
         &mut clock,
         &Timestamp {
-            epoch: 0,
             time: 10,
             count: 0,
         },
@@ -70,7 +65,6 @@ fn fig_6_proc_1_b() -> Result<()> {
     assert_eq!(
         clock.now()?,
         Timestamp {
-            epoch: 0,
             time: 10,
             count: 2
         }
@@ -82,7 +76,6 @@ fn fig_6_proc_1_b() -> Result<()> {
 fn fig_6_proc_2_b() -> Result<()> {
     let mut clock = Clock::manual(0)?;
     clock.observe(&Timestamp {
-        epoch: 0,
         time: 1,
         count: 0,
     });
@@ -92,14 +85,12 @@ fn fig_6_proc_2_b() -> Result<()> {
         observing(
             &mut clock,
             &Timestamp {
-                epoch: 0,
                 time: 10,
                 count: 2
             }
         )
         .unwrap(),
         Timestamp {
-            epoch: 0,
             time: 10,
             count: 3
         }
@@ -114,7 +105,6 @@ fn fig_6_proc_2_c() -> Result<()> {
     let _ = observing(
         &mut clock,
         &Timestamp {
-            epoch: 0,
             time: 10,
             count: 2,
         },
@@ -124,7 +114,6 @@ fn fig_6_proc_2_c() -> Result<()> {
     assert_eq!(
         clock.now()?,
         Timestamp {
-            epoch: 0,
             time: 10,
             count: 4
         }
@@ -136,7 +125,6 @@ fn fig_6_proc_2_c() -> Result<()> {
 fn all_sources_same() -> Result<()> {
     let mut clock = Clock::manual(0)?;
     let observed = Timestamp {
-        epoch: 0,
         time: 0,
         count: 5,
     };
@@ -155,7 +143,6 @@ fn handles_time_going_backwards_now() -> Result<()> {
     assert_eq!(
         clock.now()?,
         Timestamp {
-            epoch: 0,
             time: 10,
             count: 2
         }
@@ -171,7 +158,6 @@ fn handles_time_going_backwards_observe() -> Result<()> {
     let result = observing(
         &mut clock,
         &Timestamp {
-            epoch: 0,
             time: 0,
             count: 0,
         },
@@ -193,7 +179,6 @@ fn handles_time_going_forwards_now() -> Result<()> {
     assert_eq!(
         t2,
         Timestamp {
-            epoch: 0,
             time: 12,
             count: 0
         }
@@ -210,136 +195,14 @@ fn handles_time_going_forwards_observe() -> Result<()> {
         observing(
             &mut clock,
             &Timestamp {
-                epoch: 0,
                 time: 0,
                 count: 0
             }
         )
         .unwrap(),
         Timestamp {
-            epoch: 0,
             time: 12,
             count: 0
-        }
-    );
-    Ok(())
-}
-
-#[test]
-fn should_order_primarily_via_epoch() -> Result<()> {
-    let mut clock0 = Clock::manual(10)?;
-    clock0.set_epoch(0);
-    let mut clock1 = Clock::manual(0)?;
-    clock1.set_epoch(1);
-
-    let a = clock0.now()?;
-    let b = clock1.now()?;
-    println!("a: {} < b: {}", a, b);
-    assert!(a < b);
-    Ok(())
-}
-
-#[test]
-fn should_apply_configured_epoch() -> Result<()> {
-    let mut clock0 = Clock::manual(10)?;
-
-    let _ = clock0.now();
-
-    clock0.set_epoch(1);
-
-    clock0.set_time(1);
-
-    let a = clock0.now()?;
-
-    assert_eq!(
-        a,
-        Timestamp {
-            epoch: 1,
-            time: 1,
-            count: 0
-        }
-    );
-    Ok(())
-}
-
-#[test]
-fn should_update_via_observed_epochs() -> Result<()> {
-    let mut clock0 = Clock::manual(10)?;
-    clock0.set_epoch(0);
-
-    let _ = clock0.now();
-
-    let mut clock1 = Clock::manual(0)?;
-    clock1.set_epoch(1);
-
-    clock0.set_time(1);
-    clock1.set_time(1);
-
-    let a = clock1.now()?;
-
-    let b = observing(&mut clock0, &a).unwrap();
-    println!("a: {}; b: {}", a, b);
-    assert_eq!(
-        a,
-        Timestamp {
-            epoch: 1,
-            time: 1,
-            count: 0
-        }
-    );
-    assert_eq!(
-        b,
-        Timestamp {
-            epoch: 1,
-            time: 1,
-            count: 1
-        }
-    );
-    Ok(())
-}
-
-#[test]
-fn should_remember_epochs() -> Result<()> {
-    let mut clock0 = Clock::manual(10)?;
-    clock0.set_epoch(0);
-
-    let mut clock1 = Clock::manual(0)?;
-    clock1.set_epoch(1);
-
-    clock0.set_time(1);
-    clock1.set_time(1);
-
-    let a = clock1.now()?;
-    let _ = observing(&mut clock0, &a).unwrap();
-    let b = clock0.now()?;
-    println!("a: {}; b:{}", a, b);
-    assert_eq!(
-        b,
-        Timestamp {
-            epoch: 1,
-            time: 1,
-            count: 2
-        }
-    );
-    Ok(())
-}
-
-#[test]
-fn should_use_time_from_larger_observed_epoch() -> Result<()> {
-    let mut clock0 = Clock::manual(10)?;
-
-    let advanced_epoch = Timestamp {
-        epoch: 100,
-        time: 1,
-        count: 0,
-    };
-    let t = observing(&mut clock0, &advanced_epoch).unwrap();
-    assert_eq!(
-        t,
-        Timestamp {
-            epoch: 100,
-            time: 1,
-            count: 1
         }
     );
     Ok(())
@@ -376,7 +239,6 @@ fn should_ignore_clocks_too_far_forward() -> Result<()> {
     let mut clock = Clock::new(src)?.with_max_diff(10);
     assert!(clock
         .observe(&Timestamp {
-            epoch: 0,
             time: 11,
             count: 0
         })
@@ -384,7 +246,6 @@ fn should_ignore_clocks_too_far_forward() -> Result<()> {
 
     clock
         .observe(&Timestamp {
-            epoch: 0,
             time: 1,
             count: 0,
         })
@@ -392,7 +253,6 @@ fn should_ignore_clocks_too_far_forward() -> Result<()> {
     assert_eq!(
         clock.now().expect("now"),
         Timestamp {
-            epoch: 0,
             time: 1,
             count: 1
         }
@@ -408,7 +268,6 @@ fn should_account_for_time_passing_when_checking_max_error() -> Result<()> {
 
     assert!(clock
         .observe(&Timestamp {
-            epoch: 0,
             time: 11,
             count: 0
         })
@@ -425,7 +284,6 @@ fn should_observe_past_timestamp() -> Result<()> {
 
     assert!(clock
         .observe(&Timestamp {
-            epoch: 0,
             time: 9,
             count: 0
         })
