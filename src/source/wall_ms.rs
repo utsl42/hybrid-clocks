@@ -4,7 +4,7 @@ use std::ops::Sub;
 use std::time::{Duration, SystemTime};
 
 use super::{ClockSource, NANOS_PER_SEC};
-use crate::{Error, Result, Timestamp};
+use crate::{Result, Timestamp};
 
 // A clock source that returns wall-clock in 2^(-16)s
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -12,22 +12,24 @@ pub struct WallMS;
 /// Representation of our timestamp.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serialization", derive(Serialize, Deserialize))]
-pub struct WallMST(u64);
+pub struct WallMST(u32, u16);
 
 impl Timestamp<WallMST> {
-    pub fn to_bytes(&self) -> [u8; 16] {
-        let mut res = [0; 16];
-        res[0..8].copy_from_slice(&self.time.0.to_be_bytes());
-        res[8..10].copy_from_slice(&self.count.to_be_bytes());
+    pub fn to_bytes(&self) -> [u8; 8] {
+        let mut res = [0; 8];
+        res[0..4].copy_from_slice(&self.time.0.to_be_bytes());
+        res[4..6].copy_from_slice(&self.time.1.to_be_bytes());
+        res[6..8].copy_from_slice(&self.count.to_be_bytes());
         return res;
     }
 
-    pub fn from_bytes(bytes: [u8; 16]) -> Self {
-        let nanos = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
-        let count = u16::from_be_bytes(bytes[8..10].try_into().unwrap());
+    pub fn from_bytes(bytes: [u8; 8]) -> Self {
+        let secs = u32::from_be_bytes(bytes[0..4].try_into().unwrap());
+        let fraction = u16::from_be_bytes(bytes[4..6].try_into().unwrap());
+        let count = u16::from_be_bytes(bytes[6..8].try_into().unwrap());
         Timestamp {
-            time: WallMST(nanos),
-            count: count,
+            time: WallMST(secs, fraction),
+            count,
         }
     }
 }
@@ -35,26 +37,17 @@ impl Timestamp<WallMST> {
 impl WallMST {
     /// The number of ticks per seconds: 2^(-16).
     pub const TICKS_PER_SEC: u64 = 1 << 16;
+    /// 2020-02-20T00:00:00-00:00
+    pub const EPOCH_2020: u64 = 1582156800;
     /// Returns the `Duration` since the unix epoch.
     pub fn duration_since_epoch(self) -> Result<Duration> {
         // TODO: use Duration::from_nanos
         let nanos_per_tick = NANOS_PER_SEC / Self::TICKS_PER_SEC;
-        let secs = self.0 / Self::TICKS_PER_SEC;
-        let minor_ticks = self.0 % Self::TICKS_PER_SEC;
+        let secs = self.0 as u64 + Self::EPOCH_2020;
+        let minor_ticks = self.1 as u64;
         let nsecs = minor_ticks * nanos_per_tick;
         assert!(nsecs < 1000_000_000, "Internal arithmetic error");
-        Duration::new(secs, nsecs.try_into().expect("internal error"));
-
-        let nanos = u128::from(self.0)
-            .checked_mul(u128::from(NANOS_PER_SEC))
-            .ok_or_else(|| Error::SupportedTime(self.0.into()))?
-            / u128::from(Self::TICKS_PER_SEC);
-
-        Ok(Duration::from_nanos(
-            nanos
-                .try_into()
-                .map_err(|_| Error::SupportedTime(nanos.into()))?,
-        ))
+        Ok(Duration::new(secs as u64, nsecs.try_into().expect("internal error")))
     }
 
     /// Returns a `SystemTime` representing this timestamp.
@@ -71,31 +64,31 @@ impl WallMST {
 
     /// Returns a `WallMST` from a `Duration` since the unix epoch.
     pub fn from_since_epoch(since_epoch: Duration) -> Result<Self> {
-        let ticks: u128 = u128::from(Self::TICKS_PER_SEC)
-            .checked_mul(since_epoch.as_nanos())
-            .ok_or_else(|| Error::SupportedTime(since_epoch.as_nanos()))?
-            / u128::from(NANOS_PER_SEC);
-        Ok(WallMST(ticks.try_into()?))
+        let nanos_per_tick = crate::source::NANOS_PER_SEC / WallMST::TICKS_PER_SEC;
+        let ticks = (since_epoch.as_secs() * WallMST::TICKS_PER_SEC) + (since_epoch.subsec_nanos() as u64/nanos_per_tick);
+        Ok(WallMST::of_u64(ticks))
     }
 
     /// Returns the number of ticks since the unix epoch.
-    pub fn as_u64(self) -> u64 {
-        self.0
+    fn as_u64(self) -> u64 {
+        ((self.0 as u64 + Self::EPOCH_2020) * Self::TICKS_PER_SEC) + self.1 as u64
     }
 
     /// Builds a WallMST from the number of ticks since the unix epoch.
-    pub fn of_u64(val: u64) -> Self {
-        WallMST(val)
+    fn of_u64(val: u64) -> Self {
+        let secs = (val >> 16).checked_sub(Self::EPOCH_2020).unwrap_or(0) as u32;
+        let minor_ticks = (val % Self::TICKS_PER_SEC) as u16;
+        WallMST(secs, minor_ticks)
     }
 }
 
 impl Sub for WallMST {
     type Output = Duration;
     fn sub(self, rhs: Self) -> Self::Output {
-        let nanos = (self.0 - rhs.0)
+        let ticks :u64 = (self.as_u64().checked_sub(rhs.as_u64())).expect("inside time range")
             .checked_mul(NANOS_PER_SEC / Self::TICKS_PER_SEC)
             .expect("inside time range");
-        Duration::from_nanos(nanos)
+        Duration::from_nanos(ticks)
     }
 }
 
@@ -145,17 +138,10 @@ mod tests {
     fn wallclocks2() -> Box<dyn GeneratorObject<Item = WallMST>> {
         u64s()
             .map(|val| {
-                let limit = u64::max_value() / 200000;
-                let scaled = (u128::from(val) * u128::from(limit)) >> 64;
-                eprintln!(
-                    "val:{} * limit:{} -> {}; scaled:{}",
-                    u128::from(val),
-                    u128::from(limit),
-                    u128::from(val) * u128::from(limit),
-                    scaled
-                );
-                eprintln!("{}", WallMST(scaled as u64));
-                WallMST(scaled as u64)
+                let limit = u64::max_value() >> 16;
+                let scaled = val & limit;
+                eprintln!("{}", WallMST::of_u64(scaled as u64));
+                WallMST::of_u64(scaled as u64)
             })
             .boxed()
     }
@@ -173,15 +159,15 @@ mod tests {
     #[test]
     fn should_round_trip_via_timespec() {
         // We expect millisecond precision, so ensure we're within ± 0.5ms
-        let allowable_error = WallMST::TICKS_PER_SEC / 1000 / 2;
+        let allowable_error :u128 = (WallMST::TICKS_PER_SEC / 1000 / 2) as u128;
 
         property(wallclocks2()).check(|wc| {
             let tsp = wc.as_systemtime().expect("wall time");
             let wc2 = WallMST::from_timespec(tsp).expect("from time");
-            let diff = wc.0 - wc2.0;
+            let diff = (wc - wc2).as_nanos();
             assert!(
                 diff <= allowable_error,
-                "left:{}; tsp: {:?}; right:{}; diff:{}",
+                "left:{:#?}; tsp: {:?}; right:{:#?}; diff:{}",
                 wc,
                 tsp,
                 wc2,

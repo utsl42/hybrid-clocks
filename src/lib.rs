@@ -90,7 +90,7 @@ impl<S: ClockSource> Clock<S> {
     pub fn new(mut src: S) -> Result<Self> {
         let init = src.now()?;
         let clock = Clock {
-            src: src,
+            src,
             last_observed: Timestamp {
                 time: init,
                 count: 0,
