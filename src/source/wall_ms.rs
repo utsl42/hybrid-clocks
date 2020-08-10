@@ -32,6 +32,20 @@ impl Timestamp<WallMST> {
             count,
         }
     }
+
+    pub fn to_u64(&self) -> u64 {
+        ((self.time.0 as u64) << 32 | (self.time.1 as u64) << 16 | (self.count as u64)) as u64
+    }
+
+    pub fn from_u64(t: u64) -> Self {
+        let secs = (t >> 32) as u32;
+        let fraction = ((t >> 16) & 0xffff) as u16;
+        let count = (t & 0xffff) as u16;
+        Timestamp {
+            time: WallMST(secs, fraction),
+            count
+        }
+    }
 }
 
 impl WallMST {
