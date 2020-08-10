@@ -1,10 +1,10 @@
 [package]
-authors = ["Ceri Storey <cez@necrofish.org.uk>"]
+authors = ["Nathan Hawkins <utsl@utsl.org>"]
 description = "Hybrid Logical Clocks"
-homepage = "https://github.com/cstorey/hybrid-clocks"
+homepage = "https://github.com/utsl42/hybrid-clocks"
 license = "MIT"
-name = "hybrid-clocks"
-version = "0.5.3"
+name = "utsl-hybrid-clocks"
+version = "0.1.0"
 edition = "2018"
 
 [dependencies]
