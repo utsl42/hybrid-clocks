@@ -1,4 +1,4 @@
-use hybrid_clocks::{Clock, Result};
+use utsl_hybrid_clocks::{Clock, Result};
 
 fn main() -> Result<()> {
     let mut clock_a = Clock::wall_ms()?;

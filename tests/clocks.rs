@@ -1,4 +1,4 @@
-use hybrid_clocks::{Clock, ManualClock, Result, Timestamp};
+use utsl_hybrid_clocks::{Clock, ManualClock, Result, Timestamp};
 use suppositions::generators::*;
 use suppositions::*;
 
@@ -291,17 +291,3 @@ fn should_observe_past_timestamp() -> Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "serialization")]
-mod serde {
-    use super::*;
-    use serde_json;
-    #[test]
-    fn should_round_trip_via_serde() -> Result<()> {
-        property(timestamps(u64s())).check(|ts| {
-            let s = serde_json::to_string(&ts).expect("to-json");
-            let ts2 = serde_json::from_str(&s).expect("from-json");
-            ts == ts2
-        });
-        Ok(())
-    }
-}

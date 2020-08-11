@@ -7,14 +7,6 @@
 
 #![deny(warnings)]
 
-#[cfg(feature = "serialization")]
-extern crate serde;
-#[cfg(feature = "serialization")]
-#[macro_use]
-extern crate serde_derive;
-#[cfg(all(feature = "serialization", test))]
-extern crate serde_json;
-
 use std::cmp::Ordering;
 use std::fmt;
 
@@ -211,9 +203,6 @@ impl<T> Timestamp<T> {
         }
     }
 }
-
-#[cfg(feature = "serialization")]
-mod serde_impl;
 
 #[cfg(test)]
 mod tests {
